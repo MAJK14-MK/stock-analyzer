@@ -1,0 +1,18 @@
+# Virtual environment (large, rebuilt from requirements.txt) venv/ 
+
+# Python cache files (created automatically when code runs) 
+__pycache__/ 
+*.pyc 
+
+# Streamlit local secrets (passwords/API keys - never upload) 
+.streamlit/secrets.toml 
+# VS Code personal settings 
+.vscode/ 
+
+# Office/temporary files 
+*.docx 
+~$* 
+
+# Windows system files 
+Thumbs.db 
+desktop.ini
