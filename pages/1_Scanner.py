@@ -21,20 +21,76 @@ NIFTY50 = ["RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", "BHARTIARTL", "IT
 st.sidebar.header("Scanner settings")
 #tickers_text = st.sidebar.text_area("Symbols (comma separated, NSE, without .NS)",
 #                                    ", ".join(NIFTY50), height=220)
-# Saved watchlists (from the Watchlists page)
-import json, os
-saved = {"Nifty 50 (built-in)": [s + ".NS" for s in NIFTY50]}
-if os.path.exists("data/watchlists.json"):
-    with open("data/watchlists.json", encoding="utf-8") as f:
-        saved.update(json.load(f))
-saved.update(st.session_state.get("watchlists", {}))
+## Saved watchlists (from the Watchlists page)
+#import json, os
+#saved = {"Nifty 50 (built-in)": [s + ".NS" for s in NIFTY50]}
+#if os.path.exists("data/watchlists.json"):
+#    with open("data/watchlists.json", encoding="utf-8") as f:
+#        saved.update(json.load(f))
+#saved.update(st.session_state.get("watchlists", {}))
+#
+#names = list(saved.keys())
+#pre = st.session_state.get("scan_list")
+#idx = names.index(pre) if pre in names else 0
+#chosen = st.sidebar.selectbox("Watchlist", names, index=idx)
+#tickers_text = st.sidebar.text_area("Symbols (edit if needed)",
+#                                    ", ".join(saved[chosen]), height=220)
 
-names = list(saved.keys())
-pre = st.session_state.get("scan_list")
-idx = names.index(pre) if pre in names else 0
-chosen = st.sidebar.selectbox("Watchlist", names, index=idx)
+# ---------- Stock universe: Nifty indices or saved watchlists ----------
+import json, os
+from indices import INDEX_FILES, get_index
+
+
+@st.cache_data(ttl=86400, show_spinner="Loading index constituents...")
+def index_constituents(name):
+    return get_index(name)
+
+
+came_from_watchlist = bool(st.session_state.get("scan_list"))
+source = st.sidebar.radio("Scan from", ["Nifty indices", "My watchlists"],
+                          index=1 if came_from_watchlist else 0, horizontal=True)
+
+if source == "Nifty indices":
+    picks = st.sidebar.multiselect("Select one or more indices", list(INDEX_FILES),
+                                   default=["Nifty 50"])
+    frames = []
+    for n in picks:
+        d = index_constituents(n)
+        if d.empty:
+            st.sidebar.warning(f"{n}: list unavailable")
+        else:
+            frames.append(d.assign(Index=n))
+    universe = (pd.concat(frames, ignore_index=True) if frames
+                else pd.DataFrame(columns=["Symbol", "Industry"]))
+
+    # Optional industry filter (e.g. only 'Capital Goods' within Nifty 500)
+    if not universe.empty and "Industry" in universe.columns:
+        industries = sorted(universe["Industry"].dropna().unique())
+        sel_ind = st.sidebar.multiselect("Filter by industry (optional)", industries)
+        if sel_ind:
+            universe = universe[universe["Industry"].isin(sel_ind)]
+
+    start_syms = list(dict.fromkeys(universe["Symbol"].astype(str).str.strip()))
+    st.sidebar.caption(f"{len(start_syms)} unique stocks from {len(picks)} index(es)")
+
+else:
+    saved = {}
+    if os.path.exists("data/watchlists.json"):
+        with open("data/watchlists.json", encoding="utf-8") as f:
+            saved.update(json.load(f))
+    saved.update(st.session_state.get("watchlists", {}))
+    if not saved:
+        st.sidebar.info("No watchlists yet – create one on the Watchlists page.")
+        start_syms = []
+    else:
+        names = list(saved.keys())
+        pre = st.session_state.get("scan_list")
+        chosen = st.sidebar.selectbox("Watchlist", names,
+                                      index=names.index(pre) if pre in names else 0)
+        start_syms = saved[chosen]
+
 tickers_text = st.sidebar.text_area("Symbols (edit if needed)",
-                                    ", ".join(saved[chosen]), height=220)
+                                    ", ".join(start_syms), height=200)
 
 buy_th = st.sidebar.slider("Buy if score ≥", 0, 80, 15, 5)
 sell_th = st.sidebar.slider("Sell if score ≤", -80, 0, -15, 5)
@@ -46,6 +102,9 @@ symbols = tuple(dict.fromkeys(                      # removes duplicates, keeps 
     s.strip().upper() + ("" if s.strip().upper().endswith((".NS", ".BO")) else ".NS")
     for s in tickers_text.split(",") if s.strip()))
 st.caption(f"{len(symbols)} symbols in watchlist")
+if len(symbols) > 150:
+    st.warning(f"{len(symbols)} stocks selected – scan may take 1–3 minutes. "
+               "Avoid ticking ML for large lists (it can take very long).")
 
 # ---------- 3. Indicators (same formulas as app.py) ----------
 def add_indicators(df):
@@ -197,7 +256,9 @@ if "scan" in st.session_state and not st.session_state["scan"].empty:
                      hide_index=True, use_container_width=True)
 
     # Score bar chart
+    #srt = res.sort_values("Score")
     srt = res.sort_values("Score")
+    srt = pd.concat([srt.head(25), srt.tail(25)]).drop_duplicates() if len(srt) > 60 else srt
     fig = go.Figure(go.Bar(x=srt["Score"], y=srt["Symbol"], orientation="h",
                            marker_color=["green" if v >= buy_th else "red" if v <= sell_th else "gold"
                                          for v in srt["Score"]]))
