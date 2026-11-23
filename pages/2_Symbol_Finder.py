@@ -24,22 +24,26 @@ def load_nse():
     df["Yahoo Code"] = df["Symbol"].str.strip() + ".NS"
     return df[COLS]
 
-# ---------- 2. Load BSE master list (BSE public API) ----------
+# ---------- 2. Load BSE master list (live API, fallback to saved CSV) ----------
 @st.cache_data(ttl=86400, show_spinner="Loading BSE list...")
 def load_bse():
-    url = "https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w"
-    params = {"Group": "", "Scripcode": "", "industry": "",
-              "segment": "Equity", "status": "Active"}
-    h = {**HEADERS, "Referer": "https://www.bseindia.com/",
-         "Origin": "https://www.bseindia.com"}
-    r = requests.get(url, params=params, headers=h, timeout=20)
-    r.raise_for_status()
-    df = pd.DataFrame(r.json())
+    try:
+        url = "https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w"
+        params = {"Group": "", "Scripcode": "", "industry": "",
+                  "segment": "Equity", "status": "Active"}
+        h = {**HEADERS, "Referer": "https://www.bseindia.com/",
+             "Origin": "https://www.bseindia.com"}
+        r = requests.get(url, params=params, headers=h, timeout=20)
+        r.raise_for_status()
+        df = pd.DataFrame(r.json())
+    except Exception:
+        df = pd.read_csv("data/bse_list.csv", dtype=str)   # saved copy
+
     df = df.rename(columns={"SCRIP_CD": "Symbol", "Scrip_Name": "Company",
                             "GROUP": "Series", "ISIN_NUMBER": "ISIN"})
     df["Symbol"] = df["Symbol"].astype(str).str.strip()
     df["Exchange"] = "BSE"
-    df["Yahoo Code"] = df["Symbol"] + ".BO"      # Yahoo uses BSE scrip code
+    df["Yahoo Code"] = df["Symbol"] + ".BO"
     for c in COLS:
         if c not in df.columns:
             df[c] = ""
@@ -60,9 +64,8 @@ with tab1:
         except Exception as e:
             errors.append(f"{name}: {e}")
 
-    if errors:
-        st.warning("Could not load: " + " | ".join(errors) +
-                   "  → use the 'Live Yahoo search' tab instead.")
+        if errors:
+        st.caption("ℹ️ Some lists are unavailable right now – try the 'Live Yahoo search' tab.")
 
     if frames:
         master = pd.concat(frames, ignore_index=True)
