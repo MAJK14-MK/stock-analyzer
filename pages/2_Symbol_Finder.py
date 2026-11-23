@@ -10,7 +10,8 @@ st.title("🔤 Stock Symbol Finder (NSE & BSE)")
 HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "*/*"}
 COLS = ["Company", "Symbol", "Yahoo Code", "Exchange", "Series", "ISIN"]
 
-# ---------- 1. Load NSE master list (official NSE file) ----------
+
+# ---------- 1. NSE list ----------
 @st.cache_data(ttl=86400, show_spinner="Loading NSE list...")
 def load_nse():
     url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
@@ -24,7 +25,8 @@ def load_nse():
     df["Yahoo Code"] = df["Symbol"].str.strip() + ".NS"
     return df[COLS]
 
-# ---------- 2. Load BSE master list (live API, fallback to saved CSV) ----------
+
+# ---------- 2. BSE list (live, fallback to saved CSV) ----------
 @st.cache_data(ttl=86400, show_spinner="Loading BSE list...")
 def load_bse():
     try:
@@ -37,7 +39,7 @@ def load_bse():
         r.raise_for_status()
         df = pd.DataFrame(r.json())
     except Exception:
-        df = pd.read_csv("data/bse_list.csv", dtype=str)   # saved copy
+        df = pd.read_csv("data/bse_list.csv", dtype=str)
 
     df = df.rename(columns={"SCRIP_CD": "Symbol", "Scrip_Name": "Company",
                             "GROUP": "Series", "ISIN_NUMBER": "ISIN"})
@@ -49,23 +51,26 @@ def load_bse():
             df[c] = ""
     return df[COLS]
 
+
 def send_to_analyzer(code):
     st.session_state["selected_symbol"] = code
     st.switch_page("app.py")
 
+
 tab1, tab2 = st.tabs(["📋 Master list search", "🌐 Live Yahoo search"])
 
-# ================= TAB 1: Master list =================
+# ================= TAB 1 =================
 with tab1:
     frames, errors = [], []
     for name, loader in [("NSE", load_nse), ("BSE", load_bse)]:
         try:
             frames.append(loader())
-        except Exception as e:
-            errors.append(f"{name}: {e}")
+        except Exception:
+            errors.append(name)
 
-        if errors:
-        st.caption("ℹ️ Some lists are unavailable right now – try the 'Live Yahoo search' tab.")
+    if errors:
+        st.caption("ℹ️ " + ", ".join(errors) +
+                   " list unavailable right now – try the 'Live Yahoo search' tab.")
 
     if frames:
         master = pd.concat(frames, ignore_index=True)
@@ -78,8 +83,8 @@ with tab1:
         view = master[master["Exchange"].isin(exch)]
         if query:
             q = query.strip().lower()
-            mask = (view["Company"].str.lower().str.contains(q, na=False, regex=False) |
-                    view["Symbol"].str.lower().str.contains(q, na=False, regex=False) |
+            mask = (view["Company"].astype(str).str.lower().str.contains(q, na=False, regex=False) |
+                    view["Symbol"].astype(str).str.lower().str.contains(q, na=False, regex=False) |
                     view["ISIN"].astype(str).str.lower().str.contains(q, na=False, regex=False))
             view = view[mask]
 
@@ -89,12 +94,12 @@ with tab1:
         m3.metric("Matches", len(view))
 
         st.caption("👉 Click a row to select it")
-        event = st.dataframe(view.head(500), hide_index=True, use_container_width=True,
+        shown = view.head(500)
+        event = st.dataframe(shown, hide_index=True, use_container_width=True,
                              on_select="rerun", selection_mode="single-row")
 
-        rows = event.selection.rows
-        if rows:
-            pick = view.head(500).iloc[rows[0]]
+        if event.selection.rows:
+            pick = shown.iloc[event.selection.rows[0]]
             st.success(f"Selected: **{pick['Company']}** → Yahoo code **{pick['Yahoo Code']}**")
             b1, b2 = st.columns(2)
             if b1.button("✅ Check price"):
@@ -111,23 +116,21 @@ with tab1:
                            master.to_csv(index=False).encode("utf-8"),
                            "nse_bse_symbols.csv", "text/csv")
 
-# ================= TAB 2: Live Yahoo search =================
+# ================= TAB 2 =================
 with tab2:
     q2 = st.text_input("Type company name", placeholder="e.g. infosys", key="yq")
     india_only = st.checkbox("India (NSE/BSE) only", True)
     if q2:
         try:
-            quotes = yf.Search(q2, max_results=20).quotes
-            ydf = pd.DataFrame(quotes)
+            ydf = pd.DataFrame(yf.Search(q2, max_results=20).quotes)
             if ydf.empty:
                 st.info("No results.")
             else:
-                if india_only and "exchange" in ydf:
+                if india_only and "exchange" in ydf.columns:
                     ydf = ydf[ydf["exchange"].isin(["NSI", "BSE", "BOM"])]
                 keep = [c for c in ["symbol", "shortname", "longname", "exchange",
                                     "quoteType"] if c in ydf.columns]
-                ydf = ydf[keep].rename(columns={"symbol": "Yahoo Code",
-                                                "shortname": "Name"})
+                ydf = ydf[keep].rename(columns={"symbol": "Yahoo Code", "shortname": "Name"})
                 ev2 = st.dataframe(ydf, hide_index=True, use_container_width=True,
                                    on_select="rerun", selection_mode="single-row")
                 if ev2.selection.rows:
