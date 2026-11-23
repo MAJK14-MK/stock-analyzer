@@ -10,7 +10,9 @@ st.title("📈 My Stock Analyzer")
 
 # ---------- 2. Sidebar inputs ----------
 st.sidebar.header("Settings")
-ticker = st.sidebar.text_input("Stock symbol (NSE add .NS)", "RELIANCE.NS").strip().upper()
+#ticker = st.sidebar.text_input("Stock symbol (NSE add .NS)", "RELIANCE.NS").strip().upper()
+default_sym = st.session_state.get("selected_symbol", "RELIANCE.NS")
+ticker = st.sidebar.text_input("Stock symbol (NSE add .NS)", default_sym).strip().upper()
 period = st.sidebar.selectbox("Display period", ["3mo", "6mo", "1y", "2y"], index=2)
 
 st.sidebar.subheader("Show on chart")
