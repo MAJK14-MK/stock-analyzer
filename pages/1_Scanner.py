@@ -19,8 +19,23 @@ NIFTY50 = ["RELIANCE", "TCS", "HDFCBANK", "ICICIBANK", "INFY", "BHARTIARTL", "IT
 
 # ---------- 2. Sidebar settings ----------
 st.sidebar.header("Scanner settings")
-tickers_text = st.sidebar.text_area("Symbols (comma separated, NSE, without .NS)",
-                                    ", ".join(NIFTY50), height=220)
+#tickers_text = st.sidebar.text_area("Symbols (comma separated, NSE, without .NS)",
+#                                    ", ".join(NIFTY50), height=220)
+# Saved watchlists (from the Watchlists page)
+import json, os
+saved = {"Nifty 50 (built-in)": [s + ".NS" for s in NIFTY50]}
+if os.path.exists("data/watchlists.json"):
+    with open("data/watchlists.json", encoding="utf-8") as f:
+        saved.update(json.load(f))
+saved.update(st.session_state.get("watchlists", {}))
+
+names = list(saved.keys())
+pre = st.session_state.get("scan_list")
+idx = names.index(pre) if pre in names else 0
+chosen = st.sidebar.selectbox("Watchlist", names, index=idx)
+tickers_text = st.sidebar.text_area("Symbols (edit if needed)",
+                                    ", ".join(saved[chosen]), height=220)
+
 buy_th = st.sidebar.slider("Buy if score ≥", 0, 80, 15, 5)
 sell_th = st.sidebar.slider("Sell if score ≤", -80, 0, -15, 5)
 use_ml = st.sidebar.checkbox("Include ML probability (slower)", False)
