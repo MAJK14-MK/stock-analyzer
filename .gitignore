@@ -1,4 +1,5 @@
-# Virtual environment (large, rebuilt from requirements.txt) venv/ 
+# Virtual environment (large, rebuilt from requirements.txt) 
+venv/ 
 
 # Python cache files (created automatically when code runs) 
 __pycache__/ 
