@@ -45,9 +45,7 @@ if source == "Nifty indices":
     st.sidebar.caption(f"{len(start_syms)} unique stocks from {len(picks)} index(es)")
 else:
     saved = {}
-    if os.path.exists("data/watchlists.json"):
-        with open("data/watchlists.json", encoding="utf-8") as f:
-            saved.update(json.load(f))
+     saved.update(load_lists())    
     saved.update(st.session_state.get("watchlists", {}))
     if not saved:
         st.sidebar.info("No watchlists yet – create one on the Watchlists page.")

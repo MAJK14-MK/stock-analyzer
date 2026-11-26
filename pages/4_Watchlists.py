@@ -17,22 +17,10 @@ NA = (None, None, None, None)
 # =====================================================================
 # 1. SAVE / LOAD GROUPS  (same file the Scanner uses)
 # =====================================================================
-def load_lists():
-    if os.path.exists(FILE):
-        try:
-            with open(FILE, encoding="utf-8") as f:
-                data = json.load(f)
-            if data:
-                return data
-        except Exception:
-            pass
-    return {"Default": ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS"]}
+
+from watchlist_store import load_lists, save_lists
 
 
-def save_lists(lists):
-    os.makedirs("data", exist_ok=True)
-    with open(FILE, "w", encoding="utf-8") as f:
-        json.dump(lists, f, indent=2)
 
 
 if "watchlists" not in st.session_state:
