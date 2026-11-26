@@ -18,14 +18,15 @@ NA = (None, None, None, None)
 # 1. SAVE / LOAD GROUPS  (same file the Scanner uses)
 # =====================================================================
 
-from watchlist_store import load_lists, save_lists
-
+#from watchlist_store import load_lists, save_lists
+from watchlist_store import load_lists, save_lists, storage_mode
 
 
 
 if "watchlists" not in st.session_state:
     st.session_state["watchlists"] = load_lists()
 lists = st.session_state["watchlists"]
+st.caption(f"💾 Watchlists saved to: **{storage_mode()}**")
 
 
 # =====================================================================
