@@ -11,6 +11,7 @@ st.set_page_config(page_title="Watchlists", layout="wide")
 FILE = "data/watchlists.json"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "*/*"}
 GREEN, RED, GREY = "#16a34a", "#dc2626", "#6b7280"
+NA = (None, None, None, None)
 
 
 # =====================================================================
@@ -75,23 +76,48 @@ short_name = dict(zip(master["Code"], master["Short"]))   # 500325.BO -> RELIANC
 
 
 # =====================================================================
-# 3. LIVE PRICES (cached 60 seconds)
+# 3. LIVE PRICES (cached 60 seconds) with BSE fallback
 # =====================================================================
+def fetch(cs):
+    res = {}
+    if not cs:
+        return res
+    d = yf.download(list(cs), period="5d", group_by="ticker", auto_adjust=False,
+                    progress=False, threads=True)
+    for c in cs:
+        try:
+            x = d[c] if isinstance(d.columns, pd.MultiIndex) else d
+            cl = x["Close"].dropna()
+            if len(cl) < 2:
+                continue
+            ltp, prev = float(cl.iloc[-1]), float(cl.iloc[-2])
+            res[c] = (ltp, ltp - prev, (ltp / prev - 1) * 100)
+        except Exception:
+            pass
+    return res
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def quotes(codes):
-    out = {}
-    if not codes:
-        return out
-    d = yf.download(list(codes), period="5d", group_by="ticker", auto_adjust=False,
-                    progress=False, threads=True)
+    """Returns {code: (LTP, change, change %, source code used)}.
+    If a code has no Yahoo data, tries NAME.BO, then NAME.NS."""
+    got = fetch(tuple(codes))
+    out = {c: got[c] + (c,) for c in codes if c in got}
+
+    alt = {}
     for c in codes:
-        try:
-            x = d[c] if c in d.columns.get_level_values(0) else d
-            cl = x["Close"].dropna()
-            ltp, prev = float(cl.iloc[-1]), float(cl.iloc[-2])
-            out[c] = (ltp, ltp - prev, (ltp / prev - 1) * 100)
-        except Exception:
-            out[c] = (None, None, None)
+        if c in out or c.startswith("^"):
+            continue
+        name = str(short_name.get(c, c.split(".")[0])).strip().upper()
+        alt[c] = [x for x in (name + ".BO", name + ".NS") if x != c]
+
+    cands = tuple(dict.fromkeys(x for v in alt.values() for x in v))
+    got2 = fetch(cands)
+    for c, options in alt.items():
+        for o in options:
+            if o in got2:
+                out[c] = got2[o] + (o,)
+                break
     return out
 
 
@@ -102,7 +128,7 @@ idx = {"NIFTY 50": "^NSEI", "SENSEX": "^BSESN", "BANK NIFTY": "^NSEBANK"}
 iq = quotes(tuple(idx.values()))
 cols = st.columns(len(idx) + 1)
 for col, (name, code) in zip(cols, idx.items()):
-    ltp, chg, pct = iq.get(code, (None, None, None))
+    ltp, chg, pct, _ = iq.get(code, NA)
     if ltp is None:
         col.metric(name, "—")
     else:
@@ -195,14 +221,22 @@ if not codes:
     st.stop()
 
 q = quotes(tuple(codes))
-view = pd.DataFrame([{
-    "Code": c,
-    "Symbol": short_name.get(c, c.replace(".NS", "").replace(".BO", "")),
-    "Exch": "BSE" if c.endswith(".BO") else ("INDEX" if c.startswith("^") else "NSE"),
-    "Chg": q[c][1], "Chg %": q[c][2],
-    "": ("▲" if (q[c][1] or 0) >= 0 else "▼") if q[c][1] is not None else "",
-    "LTP": q[c][0],
-} for c in codes])
+rows = []
+for c in codes:
+    ltp, chg, pct, src = q.get(c, NA)
+    exch = "BSE" if c.endswith(".BO") else ("INDEX" if c.startswith("^") else "NSE")
+    if src and src != c:
+        exch += " (via NSE)" if src.endswith(".NS") else " (via name)"
+    rows.append({
+        "Code": c,
+        "Symbol": short_name.get(c, c.replace(".NS", "").replace(".BO", "")),
+        "Exch": exch,
+        "Chg": float("nan") if chg is None else chg,
+        "Chg %": float("nan") if pct is None else pct,
+        "": "" if chg is None else ("▲" if chg >= 0 else "▼"),
+        "LTP": float("nan") if ltp is None else ltp,
+    })
+view = pd.DataFrame(rows)
 
 h1, h2 = st.columns([4, 2])
 h1.markdown(f"**{cur}** ({len(codes)})")
@@ -218,8 +252,9 @@ view = view.reset_index(drop=True)
 
 
 def color_row(r):
-    up = pd.notna(r["Chg"]) and r["Chg"] >= 0
-    c = GREEN if up else RED
+    if pd.isna(r["Chg"]):
+        return [f"color:{GREY}"] * len(r)
+    c = GREEN if r["Chg"] >= 0 else RED
     return [f"color:{c}; font-weight:600" if k in ("Symbol", "", "LTP")
             else f"color:{c}" if k == "Chg %"
             else f"color:{GREY}" for k in r.index]
@@ -233,7 +268,7 @@ event = st.dataframe(styled, hide_index=True, use_container_width=True,
                      height=min(38 + 35 * len(view), 700),
                      on_select="rerun", selection_mode="multi-row")
 st.caption("Tick one or more rows to act on them. Prices refresh every 60 seconds "
-           "(Yahoo data may be delayed).")
+           "(Yahoo data may be delayed). '—' = no Yahoo data for this stock.")
 
 # =====================================================================
 # 8. ROW ACTIONS
