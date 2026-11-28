@@ -35,6 +35,7 @@
     "AXISBANK.NS",
     "SBICARD.NS",
     "AUBANK.NS",
-    "MAHABANK.NS"
+    "MAHABANK.NS",
+    "CENTRALBK.NS"
   ]
 }
