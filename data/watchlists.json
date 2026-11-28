@@ -33,6 +33,7 @@
     "UGROCAP.NS",
     "SBIN.NS",
     "AXISBANK.NS",
-    "SBICARD.NS"
+    "SBICARD.NS",
+    "AUBANK.NS"
   ]
 }
