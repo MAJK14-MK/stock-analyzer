@@ -68,6 +68,7 @@
     "GUJENERGY.NS",
     "ONGC.NS",
     "PETRONET.NS",
-    "NTPCGREEN.NS"
+    "NTPCGREEN.NS",
+    "IEX.NS"
   ]
 }
