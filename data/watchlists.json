@@ -76,6 +76,7 @@
     "JPPOWER.NS",
     "VEDPOWER.NS",
     "VISL.NS",
-    "VOGL.NS"
+    "VOGL.NS",
+    "VAML.NS"
   ]
 }
