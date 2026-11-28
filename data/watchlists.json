@@ -36,6 +36,7 @@
     "SBICARD.NS",
     "AUBANK.NS",
     "MAHABANK.NS",
-    "CENTRALBK.NS"
+    "CENTRALBK.NS",
+    "HDFCBANK.NS"
   ]
 }
