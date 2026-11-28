@@ -38,6 +38,7 @@
     "MAHABANK.NS",
     "CENTRALBK.NS",
     "HDFCBANK.NS",
-    "ICICIBANK.NS"
+    "ICICIBANK.NS",
+    "SOUTHBANK.NS"
   ]
 }
