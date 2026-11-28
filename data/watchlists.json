@@ -80,5 +80,7 @@
     "VAML.NS",
     "MUKANDLTD.NS"
   ],
-  "Realty & Infra": []
+  "Realty & Infra": [
+    "DLF.NS"
+  ]
 }
